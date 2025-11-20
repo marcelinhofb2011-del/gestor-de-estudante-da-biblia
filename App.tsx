@@ -6,19 +6,36 @@ import StudentCard from './components/StudentCard';
 import AddStudentModal from './components/AddStudentModal';
 import UpdateProgressModal from './components/UpdateProgressModal';
 import EditStudentModal from './components/EditStudentModal';
+import EditHistoryModal from './components/EditHistoryModal';
 
 const App: React.FC = () => {
     const [students, setStudents] = useState<Student[]>([]);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    
+    // Modals state
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+    
+    // State for editing a specific history entry
+    const [editingHistorySession, setEditingHistorySession] = useState<{studentId: string, session: StudySession} | null>(null);
 
-    // Load from LocalStorage
+    // Load from LocalStorage with migration for new fields
     useEffect(() => {
         try {
             const saved = localStorage.getItem('bibleStudents');
             if (saved) {
-                setStudents(JSON.parse(saved));
+                const parsed = JSON.parse(saved);
+                // Data migration: ensure history items have IDs and time fields
+                const migrated = parsed.map((s: Student) => ({
+                    ...s,
+                    history: s.history.map((h: any) => ({
+                        ...h,
+                        id: h.id || crypto.randomUUID(),
+                        hours: h.hours || 0,
+                        minutes: h.minutes || 0
+                    }))
+                }));
+                setStudents(migrated);
             }
         } catch (error) {
             console.error("Failed to load data", error);
@@ -58,15 +75,21 @@ const App: React.FC = () => {
         setEditingStudent(null);
     };
 
-    const handleUpdateProgress = (lesson: number, paragraph: number, date: string) => {
+    const handleUpdateProgress = (lesson: number, paragraph: number, date: string, hours: number, minutes: number) => {
         if (!selectedStudent) return;
 
         setStudents(prev => prev.map(s => {
             if (s.id !== selectedStudent.id) return s;
 
-            const newSession: StudySession = { lesson, paragraph, date };
+            const newSession: StudySession = { 
+                id: crypto.randomUUID(),
+                lesson, 
+                paragraph, 
+                date,
+                hours,
+                minutes
+            };
             
-            // Update logic: Always update current pointer, add to history
             return {
                 ...s,
                 currentLesson: lesson,
@@ -77,6 +100,64 @@ const App: React.FC = () => {
         
         setSelectedStudent(null);
     };
+
+    const handleSaveHistoryEdit = (updatedSession: StudySession) => {
+        if (!editingHistorySession) return;
+
+        setStudents(prev => prev.map(s => {
+            if (s.id !== editingHistorySession.studentId) return s;
+
+            // Update the specific session in history
+            const updatedHistory = s.history.map(h => 
+                h.id === updatedSession.id ? updatedSession : h
+            );
+
+            // Determine if we need to update the "current" progress based on the latest history entry
+            // Sort history by date (or simply trust the order if appended) to find the "latest" state
+            // For simplicity, if we edit the LAST entry, we update the main state.
+            const isLastEntry = s.history.length > 0 && s.history[s.history.length - 1].id === updatedSession.id;
+            
+            let newCurrentLesson = s.currentLesson;
+            let newCurrentParagraph = s.currentParagraph;
+
+            if (isLastEntry) {
+                newCurrentLesson = updatedSession.lesson;
+                newCurrentParagraph = updatedSession.paragraph;
+            }
+
+            return {
+                ...s,
+                currentLesson: newCurrentLesson,
+                currentParagraph: newCurrentParagraph,
+                history: updatedHistory
+            };
+        }));
+
+        setEditingHistorySession(null);
+    };
+
+    const handleDeleteHistoryEntry = (sessionId: string) => {
+        if (!editingHistorySession) return;
+        
+        if(window.confirm("Tem certeza que deseja apagar este registro do histórico?")) {
+             setStudents(prev => prev.map(s => {
+                if (s.id !== editingHistorySession.studentId) return s;
+
+                const updatedHistory = s.history.filter(h => h.id !== sessionId);
+                
+                // If we deleted the last entry, revert "current" to the new last entry
+                const lastSession = updatedHistory.length > 0 ? updatedHistory[updatedHistory.length - 1] : null;
+                
+                return {
+                    ...s,
+                    currentLesson: lastSession ? lastSession.lesson : 1,
+                    currentParagraph: lastSession ? lastSession.paragraph : 0,
+                    history: updatedHistory
+                };
+            }));
+            setEditingHistorySession(null);
+        }
+    }
 
     const handleDeleteStudent = (id: string) => {
         if (window.confirm("Tem certeza que deseja excluir este estudante?")) {
@@ -135,6 +216,7 @@ const App: React.FC = () => {
                                 onUpdate={setSelectedStudent}
                                 onEdit={setEditingStudent}
                                 onDelete={handleDeleteStudent}
+                                onEditHistory={(session) => setEditingHistorySession({ studentId: student.id, session })}
                             />
                         ))}
                     </div>
@@ -161,6 +243,15 @@ const App: React.FC = () => {
                     student={selectedStudent}
                     onClose={() => setSelectedStudent(null)}
                     onSave={handleUpdateProgress}
+                />
+            )}
+
+            {editingHistorySession && (
+                <EditHistoryModal
+                    session={editingHistorySession.session}
+                    onClose={() => setEditingHistorySession(null)}
+                    onSave={handleSaveHistoryEdit}
+                    onDelete={handleDeleteHistoryEntry}
                 />
             )}
 

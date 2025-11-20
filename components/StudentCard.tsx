@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Student } from '../types';
+import { Student, StudySession } from '../types';
 import ProgressBar from './ProgressBar';
 import { getTeachingTips } from '../services/geminiService';
 
@@ -9,9 +9,10 @@ interface StudentCardProps {
     onUpdate: (student: Student) => void;
     onEdit: (student: Student) => void;
     onDelete: (id: string) => void;
+    onEditHistory: (session: StudySession) => void;
 }
 
-const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onEdit, onDelete }) => {
+const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onEdit, onDelete, onEditHistory }) => {
     const [showHistory, setShowHistory] = useState(false);
     const [aiTips, setAiTips] = useState<string | null>(null);
     const [loadingAi, setLoadingAi] = useState(false);
@@ -19,11 +20,16 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onEdit, on
     // Função para formatar data sem problemas de fuso horário
     const formatDate = (dateString: string) => {
         if (!dateString) return 'Data inválida';
-        // Divide a string "YYYY-MM-DD" manualmente
         const parts = dateString.split('-');
         if (parts.length !== 3) return dateString;
-        // Retorna DD/MM/YYYY
         return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    };
+
+    const formatTime = (hours?: number, minutes?: number) => {
+        if (!hours && !minutes) return '';
+        const h = hours || 0;
+        const m = minutes || 0;
+        return `${h}h ${m}min`;
     };
 
     const handleGetTips = async () => {
@@ -150,10 +156,24 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onEdit, on
                         {student.history.length === 0 ? (
                             <p className="text-xs text-center text-slate-400 py-2">Nenhum registro ainda.</p>
                         ) : (
-                            [...student.history].reverse().map((h, idx) => (
-                                <div key={idx} className="flex justify-between text-xs text-slate-600 bg-slate-50 p-2 rounded">
-                                    <span>{formatDate(h.date)}</span>
-                                    <span className="font-medium">Lição {h.lesson} {h.paragraph > 0 ? `(§ ${h.paragraph})` : ''}</span>
+                            [...student.history].reverse().map((h) => (
+                                <div key={h.id} className="flex justify-between items-center text-xs text-slate-600 bg-slate-50 p-2 rounded group">
+                                    <div className="flex flex-col">
+                                        <span className="font-semibold text-slate-700">{formatDate(h.date)}</span>
+                                        <span className="text-slate-500">{formatTime(h.hours, h.minutes)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-medium">Lição {h.lesson} {h.paragraph > 0 ? `(§ ${h.paragraph})` : ''}</span>
+                                        <button 
+                                            onClick={() => onEditHistory(h)}
+                                            className="text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                            title="Corrigir registro"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                            </svg>
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         )}

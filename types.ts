@@ -1,8 +1,11 @@
 
 export interface StudySession {
+    id: string;
     lesson: number;
     paragraph: number;
     date: string; // ISO Date string
+    hours: number;
+    minutes: number;
     notes?: string;
 }
 
