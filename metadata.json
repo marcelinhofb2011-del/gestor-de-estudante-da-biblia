@@ -1,0 +1,5 @@
+{
+  "name": "Gestor de Estudantes da Bíblia",
+  "description": "Aplicação para gerenciar o progresso de estudantes da Bíblia, focado no livro Seja Feliz Para Sempre, acompanhando lições, parágrafos e datas.",
+  "requestFramePermissions": []
+}
